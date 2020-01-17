@@ -1,0 +1,35 @@
+{
+    "lifecycle": {
+        "rule": [
+            {
+                "action": {
+                    "type": "SetStorageClass",
+                    "storageClass": "NEARLINE"
+                },
+                "condition": {
+                    "age": 90,
+                    "matchesStorageClass": ["MULTI_REGIONAL", "STANDARD", "DURABLE_REDUCED_AVAILABILITY"]
+                }
+            },
+            {
+                "action": {
+                    "type": "SetStorageClass",
+                    "storageClass": "COLDLINE"
+                },
+                "condition": {
+                    "age": 730,
+                    "matchesStorageClass": ["NEARLINE"]
+                }
+            },
+            {
+                "action": {
+                    "type": "Delete"
+                },
+                "condition": {
+                    "age": 1825,
+                    "isLive": true
+                }
+            }
+        ]
+    }
+}

@@ -1,0 +1,182 @@
+image: google/cloud-sdk
+
+stages:
+  - deploy
+
+.deploy_template:
+  stage: deploy
+  script:
+    - auth ${PROJECT}
+    - gcloud services enable cloudfunctions.googleapis.com
+    - gcloud services enable cloudscheduler.googleapis.com
+    - gsutil ls -b gs://${PROJECT}-cloudsql-exports || gsutil mb -p ${PROJECT} gs://${PROJECT}-cloudsql-exports
+    # set bucket lifecycle. Policy is meant to meet REGSCI compliance.
+    - gsutil lifecycle set bucket_lifecycle.json gs://${PROJECT}-cloudsql-exports
+    - gcloud pubsub topics describe ${PROJECT}-cloudsql-exports || gcloud pubsub topics create ${PROJECT}-cloudsql-exports
+    # grant all sql instances access to bucket
+    - bucket_access ${PROJECT}-cloudsql-exports
+    - deploy_function ${PROJECT}-cloudsql-exports
+    # create a schedule for each instance
+    - create_schedules ${PROJECT} "${FREQUENCY}"
+    # logging metric
+    - gcloud logging metrics describe cloudsql-exports_error_count || gcloud logging metrics create cloudsql-exports_error_count --description="Count of cloudsql-export errors" --log-filter='resource.type="cloud_function" AND resource.labels.function_name="cloudsql-export" AND labels.execution_id:"" AND textPayload:"event timeout"'
+
+
+# you need a service account and have gitlab ci variable defined with json file contents
+.example-project-nonprod:
+  variables:
+    PROJECT: example-project-nonprod
+    # daily at 6PM America/Denver
+    FREQUENCY: "0 18 * * *"
+  environment:
+    name: example-project-nonprod
+example-project-nonprod:manual:
+  extends:
+    - .deploy_template
+    - .example-project-nonprod
+  when: manual
+  except:
+    refs:
+      - master
+example-project-nonprod:master:
+  extends:
+    - .deploy_template
+    - .example-project-nonprod
+  only:
+    refs:
+      - master
+
+.example-project-staging-dino:
+  variables:
+    PROJECT: example-project-staging-dino
+    # every 4 hours
+    FREQUENCY: "0 */4 * * *"
+  environment:
+    name: example-project-staging-dino
+example-project-staging-dino:manual:
+  extends:
+    - .deploy_template
+    - .example-project-staging-dino
+  when: manual
+  except:
+    refs:
+      - master
+example-project-staging-dino:master:
+  extends:
+    - .deploy_template
+    - .example-project-staging-dino
+  only:
+    refs:
+      - master
+
+.example-project-prod-dino:
+  variables:
+    PROJECT: example-project-prod-dino
+    # every hour
+    FREQUENCY: "0 * * * *"
+  environment:
+    name: example-project-prod-dino
+example-project-prod-dino:manual:
+  extends:
+    - .deploy_template
+    - .example-project-prod-dino
+  when: manual
+  except:
+    refs:
+      - master
+example-project-prod-dino:master:
+  extends:
+    - .deploy_template
+    - .example-project-prod-dino
+  only:
+    refs:
+      - master
+
+# raven-api-service
+.example-project-raven-testnet:
+  variables:
+    PROJECT: example-project-raven-testnet
+    # daily at 6PM America/Denver
+    FREQUENCY: "0 18 * * *"
+  environment:
+    name: example-project-raven-testnet
+example-project-raven-testnet:manual:
+  extends:
+    - .deploy_template
+    - .example-project-raven-testnet
+  when: manual
+  except:
+    refs:
+      - master
+example-project-raven-testnet:master:
+  extends:
+    - .deploy_template
+    - .example-project-raven-testnet
+  only:
+    refs:
+      - master
+
+.example-project-raven-mainnet:
+  variables:
+    PROJECT: example-project-raven-mainnet
+    # every hour
+    FREQUENCY: "0 * * * *"
+  environment:
+    name: example-project-raven-mainnet
+example-project-raven-mainnet:manual:
+  extends:
+    - .deploy_template
+    - .example-project-raven-mainnet
+  when: manual
+  except:
+    refs:
+      - master
+example-project-raven-mainnet:master:
+  extends:
+    - .deploy_template
+    - .example-project-raven-mainnet
+  only:
+    refs:
+      - master
+
+before_script:
+  - |
+    function auth() {
+      echo $GCP_SERVICE_ACCOUNT_CONTENTS > sa.json
+      gcloud auth activate-service-account --key-file sa.json
+      gcloud config set project ${1}
+    } 
+
+    function bucket_access() {
+      apt-get -yqq install jq
+      for i in $(gcloud sql instances list --filter state=RUNNABLE --format json | jq '.[].serviceAccountEmailAddress' -r); do
+        gsutil acl ch -u ${i}:W gs://${1}
+      done
+    }
+
+    function deploy_function() {
+      cd functions/cloudsql-export
+      gcloud functions deploy cloudsql-export --runtime go111 --trigger-topic ${1} --entry-point Csqlexport --retry
+    }
+
+    function create_schedules() {
+      apt-get -yqq install jq
+
+      for i in $(gcloud sql instances list --filter state=RUNNABLE --format json | jq '.[].name' -r); do
+        for j in $(gcloud sql databases list --instance ${i} --format json | jq '.[].name' -r); do
+          SCHEDULE="${@:2}"
+
+          # offset postgres db exports by 30 minutes
+          if [ ${j} = "postgres" ]; then
+            SCHEDULE=$(echo "$SCHEDULE" | sed "s/^0/30/")
+          fi
+
+          gcloud scheduler jobs describe ${i}-${j}-cloudsql-export || \
+            gcloud scheduler jobs create pubsub ${i}-${j}-cloudsql-export --description="export to ${1}-cloudsql-exports" \
+            --schedule="${SCHEDULE}" --time-zone="America/Denver" --topic=${1}-cloudsql-exports \
+            --message-body="${i}-${j}-cloudsql-export" \
+            --attributes="project=${1}","instance=${i}","database=${j}","bucket=${1}-cloudsql-exports"
+          gcloud scheduler jobs update pubsub ${i}-${j}-cloudsql-export --schedule="${SCHEDULE}"
+        done
+      done
+    }
