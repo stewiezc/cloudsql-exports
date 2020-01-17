@@ -46,95 +46,25 @@ example-project-nonprod:master:
     refs:
       - master
 
-.example-project-staging-dino:
+.example-project-staging:
   variables:
-    PROJECT: example-project-staging-dino
+    PROJECT: example-project-staging
     # every 4 hours
     FREQUENCY: "0 */4 * * *"
   environment:
-    name: example-project-staging-dino
-example-project-staging-dino:manual:
+    name: example-project-staging
+example-project-staging:manual:
   extends:
     - .deploy_template
-    - .example-project-staging-dino
+    - .example-project-staging
   when: manual
   except:
     refs:
       - master
-example-project-staging-dino:master:
+example-project-staging:master:
   extends:
     - .deploy_template
-    - .example-project-staging-dino
-  only:
-    refs:
-      - master
-
-.example-project-prod-dino:
-  variables:
-    PROJECT: example-project-prod-dino
-    # every hour
-    FREQUENCY: "0 * * * *"
-  environment:
-    name: example-project-prod-dino
-example-project-prod-dino:manual:
-  extends:
-    - .deploy_template
-    - .example-project-prod-dino
-  when: manual
-  except:
-    refs:
-      - master
-example-project-prod-dino:master:
-  extends:
-    - .deploy_template
-    - .example-project-prod-dino
-  only:
-    refs:
-      - master
-
-# raven-api-service
-.example-project-raven-testnet:
-  variables:
-    PROJECT: example-project-raven-testnet
-    # daily at 6PM America/Denver
-    FREQUENCY: "0 18 * * *"
-  environment:
-    name: example-project-raven-testnet
-example-project-raven-testnet:manual:
-  extends:
-    - .deploy_template
-    - .example-project-raven-testnet
-  when: manual
-  except:
-    refs:
-      - master
-example-project-raven-testnet:master:
-  extends:
-    - .deploy_template
-    - .example-project-raven-testnet
-  only:
-    refs:
-      - master
-
-.example-project-raven-mainnet:
-  variables:
-    PROJECT: example-project-raven-mainnet
-    # every hour
-    FREQUENCY: "0 * * * *"
-  environment:
-    name: example-project-raven-mainnet
-example-project-raven-mainnet:manual:
-  extends:
-    - .deploy_template
-    - .example-project-raven-mainnet
-  when: manual
-  except:
-    refs:
-      - master
-example-project-raven-mainnet:master:
-  extends:
-    - .deploy_template
-    - .example-project-raven-mainnet
+    - .example-project-staging
   only:
     refs:
       - master
