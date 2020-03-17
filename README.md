@@ -95,11 +95,11 @@ A logging metric `cloudsql-exports_error_count` is created. You will need to cre
 
 Example:
 ```
-INSTANCE_NAME="zac-test-postgres"
-DB_NAME="zac-test"
+INSTANCE_NAME="test-postgres"
+DB_NAME="test"
 DB_USER="postgres"
 # path to the object to import
-OBJECT_PATH="gs://example-project-nonprod-cloudsql-exports/example-project-nonprod/zac-test-postgres/zac-test-postgres-zac-test-20190613220956.gz"
+OBJECT_PATH="gs://example-project-nonprod-cloudsql-exports/example-project-nonprod/test-postgres/test-postgres-test-20190613220956.gz"
 # get the service account address
 SA_ADDRESS=$(gcloud sql instances list --filter name=$INSTANCE_NAME --format json | jq '.[].serviceAccountEmailAddress' -r)
 gsutil acl ch -u $SA_ADDRESS:R $OBJECT_PATH
